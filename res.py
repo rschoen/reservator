@@ -3,6 +3,7 @@ import datetime
 import time
 import csv
 import sys
+import random
 
 headers = {
 	 'origin': 'https://resy.com',
@@ -25,6 +26,11 @@ def login(username,password):
 
 	response = requests.post('https://api.resy.com/3/auth/password', headers=headers, data=data)
 	res_data = response.json()
+	if (res_data['em_address'] == username):
+		print "Logged in."
+	else:
+		print "Login failed. Exiting"
+		quit()
 	auth_token = res_data['token']
 	payment_method_string = '{"id":' + str(res_data['payment_method_id']) + '}'
 	return auth_token,payment_method_string
@@ -52,8 +58,14 @@ def find_table(res_date,party_size,table_time,auth_token,venue_id):
 			best_table = [k for k in open_slots if k['date']['start'] == closest_time][0]
 
 			return best_table
+		else:
+			print "No open slots found."
+	else:
+		print "No matching venue found. Check venue ID."
+		quit()
 
-def make_reservation(auth_token,config_id,res_date,party_size):
+def make_reservation(auth_token,payment_method_string,config_id,res_date,party_size):
+	print "Making the reservation now!"
 	#convert datetime to string
 	day = res_date.strftime('%Y-%m-%d')
 	party_size = str(party_size)
@@ -72,42 +84,61 @@ def make_reservation(auth_token,config_id,res_date,party_size):
 	  'struct_payment_method': payment_method_string,
 	  'source_id': 'resy.com-venue-details'
 	}
-
 	response = requests.post('https://api.resy.com/3/book', headers=headers, data=data)
-
-
-def try_table(day,party_size,table_time,auth_token,restaurant):
-	best_table = find_table(day,party_size,table_time,auth_token,restaurant)
-	if best_table is not None:
-        	hour = datetime.datetime.strptime(best_table['date']['start'],"%Y-%m-%d %H:%M:00").hour
-	        if (hour > 19) and (hour < 21):
-               	        config_id = best_table['config']['token']
-                        make_reservation(auth_token,config_id,day,party_size)
-       	                print 'success'
-			return 1
+	print response.json()
+	resID = response.json()["specs"]["reservation_id"]
+	if resID > 0:
+		print "Successfully got reservation ID " + str(resID)
 	else:
-		time.sleep(1)
+		print "Looks like reservation failed. Bailing out."
+		quit()
+
+def try_table(dates,party_size,table_time,auth_token,payment_method_string,restaurant):
+	date = random.choice(dates.split(','))
+	day = datetime.datetime.strptime(date,'%m/%d/%Y')
+	print "Searching for a table on " +date+ "..."
+	
+	best_table = find_table(day,party_size,table_time,auth_token,restaurant)
+	#print best_table
+	if best_table is not None:
+		hour = datetime.datetime.strptime(best_table['date']['start'],"%Y-%m-%d %H:%M:00").hour
+		print "Found a table at hour " + str(hour)
+		if (hour >= 18) and (hour <= 20):
+			config_id = best_table['config']['token']
+			make_reservation(auth_token,payment_method_string,config_id,day,party_size)
+			return 1
+		else:
+			print "That's not in the ideal range. We'll try again."
+			sleepRandom()
+			return 0
+	else:
+		print "Nothing found."
+		sleepRandom()
 		return 0
 
+def sleepRandom():
+	sleepSeconds = 60*60 - 15*60 + random.randrange(30*60)
+	print "Sleeping for " + str(sleepSeconds) + " seconds..."
+	time.sleep(sleepSeconds)
+
 def readconfig():
-	dat = open('requests.config').read().split('\n')
+	dat = open('requests.config').read().split('\r\n')
 	return [k.split(':')[1] for k in dat]
 
 
 def main():
-	username, password, venue, date, guests = readconfig()
+	username, password, venue, dates, guests = readconfig()
 	auth_token,payment_method_string = login(username,password)
-	print 'logged in succesfully - disown this task and allow it to run in the background'
 	party_size = int(guests)
-	table_time = 20
-	day = datetime.datetime.strptime(date,'%m/%d/%Y')
+	table_time = 19
 	restaurant = int(venue)
 
 	reserved = 0
 	while reserved == 0:
 		try:
-			reserved = try_table(day,party_size,table_time,auth_token,restaurant)
-		except:
+			reserved = try_table(dates,party_size,table_time,auth_token,payment_method_string,restaurant)
+		except Exception, e:
+			print("Unexpected error:", str(e))
 			with open('failures.csv','ab') as outf:
 				writer = csv.writer(outf)
 				writer.writerow([time.time()])
