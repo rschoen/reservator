@@ -93,8 +93,7 @@ def make_reservation(auth_token,payment_method_string,config_id,res_date,party_s
 		print "Looks like reservation failed. Bailing out."
 		quit()
 
-def try_table(dates,party_size,table_time,auth_token,payment_method_string,restaurant):
-	date = random.choice(dates.split(','))
+def try_table(date,party_size,table_time,auth_token,payment_method_string,restaurant):
 	day = datetime.datetime.strptime(date,'%m/%d/%Y')
 	print "Searching for a table on " +date+ "..."
 	
@@ -109,11 +108,9 @@ def try_table(dates,party_size,table_time,auth_token,payment_method_string,resta
 			return 1
 		else:
 			print "That's not in the ideal range. We'll try again."
-			sleepRandom()
 			return 0
 	else:
-		print "Nothing found."
-		sleepRandom()
+		#print "Nothing found."
 		return 0
 
 def sleepRandom():
@@ -136,7 +133,11 @@ def main():
 	reserved = 0
 	while reserved == 0:
 		try:
-			reserved = try_table(dates,party_size,table_time,auth_token,payment_method_string,restaurant)
+			for date in dates.split(','):
+				if reserved == 0:
+					reserved = try_table(date,party_size,table_time,auth_token,payment_method_string,restaurant)
+			if reserved == 0:
+				sleepRandom()
 		except Exception, e:
 			print("Unexpected error:", str(e))
 			with open('failures.csv','ab') as outf:
