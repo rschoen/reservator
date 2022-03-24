@@ -61,8 +61,7 @@ def find_table(res_date,party_size,table_time,auth_token,venue_id):
 		else:
 			print "No open slots found."
 	else:
-		print "No matching venue found. Check venue ID."
-		quit()
+		print "That date is not yet available, or the venue does not exist."
 
 def make_reservation(auth_token,payment_method_string,config_id,res_date,party_size):
 	print "Making the reservation now!"
@@ -102,7 +101,7 @@ def try_table(date,party_size,table_time,auth_token,payment_method_string,restau
 	if best_table is not None:
 		hour = datetime.datetime.strptime(best_table['date']['start'],"%Y-%m-%d %H:%M:00").hour
 		print "Found a table at hour " + str(hour)
-		if (hour >= 18) and (hour <= 20):
+		if (hour >= 18) and (hour <= 19):
 			config_id = best_table['config']['token']
 			make_reservation(auth_token,payment_method_string,config_id,day,party_size)
 			return 1
@@ -120,7 +119,8 @@ def sleepRandom():
 
 def readconfig():
 	dat = open('requests.config').read().split('\r\n')
-	return [k.split(':')[1] for k in dat]
+	print dat
+        return [k.split(':')[1] for k in dat[:5]]
 
 
 def main():
